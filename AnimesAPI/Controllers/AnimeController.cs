@@ -1,83 +1,143 @@
 ﻿using AnimesAPI.Enums;
 using Microsoft.AspNetCore.Mvc;
+using System.Linq;
 
 namespace AnimesAPI.Controllers {
-    [Route("api/[controller]")]
+    [Route("api/[controller]/[action]")]
     [ApiController]
     public class AnimeController : ControllerBase {
 
-        private static List<Anime> animes = new List<Anime> {
-            new Anime() {
-                Id = 1,
-                Title = "One Piece",
-                Genre = "Adventure",
-                Score = 10,
-                Status = StatusEnum.Watching
-            },
-            new Anime() {
-                Id = 2,
-                Title = "Naruto",
-                Genre = "Action",
-                Score = 9.5,
-                Status = StatusEnum.Completed
-            }
-        };
+        private readonly DataContext _context;
+
+        public AnimeController(DataContext context) {
+            _context = context;
+        }
 
         [HttpGet]
+        [ActionName("GetAnimeList")]
         public async Task<ActionResult<List<Anime>>> GetAnimeList() {
-            if (animes == null)
-                return BadRequest("Não existem animes na lista.");
+            if (await _context.Animes.ToListAsync() == null)
+                return BadRequest("There is no animes on this list.");
 
-            return Ok(animes);
+            return Ok(await _context.Animes.ToListAsync());
         }
 
         [HttpGet("{id}")]
+        [ActionName("GetAnimeById")]
         public async Task<ActionResult<Anime>> GetAnimeById(int id) {
-            if (animes == null )
-                return BadRequest("Não existem animes na lista.");
+            var anime = await _context.Animes.FindAsync(id);
 
-            var anime = animes.Find(f => f.Id == id);
+            if (anime == null )
+                return BadRequest("Anime not found.");
 
             return Ok(anime);
         }
 
-        [HttpPost]
-        public async Task<ActionResult<List<Anime>>> AddAnime(Anime anime) {
-            if (animes == null)
-                return BadRequest("Não existem animes na lista.");
+        [HttpGet]
+        [ActionName("GetAnimeByRank")]
+        public async Task<ActionResult<List<Anime>>> GetAnimeByRank() {
+            if (await _context.Animes.ToListAsync() == null)
+                return BadRequest("There is no animes on this list.");
 
-            animes.Add(anime);
+            var rankedAnimes = await _context.Animes.Select(p => new { p.Title, p.Score })
+                                                    .Where(p => p.Score != null)
+                                                    .OrderByDescending(p => p.Score)
+                                                    .ToListAsync();
+
+            return Ok(rankedAnimes);
+        }
+
+        [HttpGet]
+        [ActionName("GetAnimeByStatus")]
+        public async Task<ActionResult<List<Anime>>> GetAnimeByStatus(int requestedStatus) {
+            if (await _context.Animes.ToListAsync() == null)
+                return BadRequest("There is no animes on this list.");
+
+            var animesByStatus = await _context.Animes.Select(p => new { p.Title, p.Genre, p.Status })
+                                                      .Where(p => (int)p.Status == requestedStatus)
+                                                      .ToListAsync();
+
+            if (animesByStatus.Count == 0)
+                return NotFound("There is no anime with the selected status.");
+                
+            return Ok(animesByStatus);
+        }
+
+        [HttpGet]
+        [ActionName("GetAnimeByTitle")]
+        public async Task<ActionResult<List<Anime>>> GetAnimeByTitle(string requestedTitle) {
+            if (await _context.Animes.ToArrayAsync() == null)
+                return BadRequest("There is no animes on this list.");
+
+            var animeTitle = await _context.Animes.Where(p => p.Title.Contains(requestedTitle))
+                                                  .ToListAsync();
+
+            if (animeTitle.Count == 0)
+                return NotFound("There is no anime on this list with the selected title.");
+
+            return Ok(animeTitle);
+        }
+
+        [HttpGet]
+        [ActionName("GetAnimeByGenre")]
+        public async Task<ActionResult<List<Anime>>> GetAnimeByGenre(string requestedGenre) {
+            if (await _context.Animes.ToArrayAsync() == null)
+                return BadRequest("There is no animes on this list.");
+
+            var animesByGenre = await _context.Animes.Where(p => p.Genre.Contains(requestedGenre))
+                                                     .ToListAsync();
+
+            if (animesByGenre.Count == 0)
+                return NotFound("There is no anime on this list with the selected genre.");
+
+            return Ok(animesByGenre);
+        }
+
+        [HttpPost]
+        [ActionName("AddAnime")]
+        public async Task<ActionResult<List<Anime>>> AddAnime(Anime anime) {
+            if (await _context.Animes.ToListAsync() == null)
+                return BadRequest("There is no animes on this list.");
+
+            _context.Animes.Add(anime);
+            await _context.SaveChangesAsync();
             
-            return Ok(animes);
+            return Ok(await _context.Animes.ToListAsync());
         }
 
         [HttpPut]
-        public async Task<ActionResult<List<Anime>>> UpdateAnime(Anime request) {
-            if (animes == null)
-                return BadRequest("Não existem animes na lista.");
+        [ActionName("UpdateAnime")]
+        public async Task<ActionResult<List<Anime>>> UpdateAnime(Anime anime) {
+            if (await _context.Animes.ToListAsync() == null)
+                return BadRequest("There is no animes on this list..");
 
-            var anime = animes.Find(f => f.Id == request.Id);
+            var dbAnime = await _context.Animes.FindAsync(anime.Id);
 
-            anime.Title = request.Title;
-            anime.Genre = request.Genre;
-            anime.Score = request.Score;
-            anime.Status = request.Status;
+            dbAnime.Title = anime.Title;
+            dbAnime.Genre = anime.Genre;
+            dbAnime.Score = anime.Score;
+            dbAnime.Status = anime.Status;
 
-            return Ok(animes);
+            await _context.SaveChangesAsync();
+
+            return Ok(await _context.Animes.ToListAsync());
         }
 
         [HttpDelete]
+        [ActionName("DeleteAnime")]
         public async Task<ActionResult<List<Anime>>> DeleteAnime(int id) {
-            if (animes == null)
-                return BadRequest("Não existem animes na lista.");
+            if (await _context.Animes.ToListAsync() == null)
+                return BadRequest("There is no animes on this list.");
 
-            var anime = animes.Find(f => f.Id == id);
+            var anime = await _context.Animes.FindAsync(id);
             if (anime == null)
-                return BadRequest("Id inválido.");
+                return BadRequest("Invalid id.");
 
-            animes.Remove(anime);
+            _context.Animes.Remove(anime);
 
-            return Ok(animes);
+            await _context.SaveChangesAsync();
+
+            return Ok(await _context.Animes.ToListAsync());
         }
     }
 }
