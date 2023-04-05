@@ -139,5 +139,14 @@ namespace AnimesAPI.Controllers {
 
             return Ok(await _context.Animes.ToListAsync());
         }
+
+        //[HttpGet]
+        //public ActionResult<List<Anime>> GetAnimes() {
+        //    var animeDTO = new AnimeDTO() {
+
+        //    };
+
+        //    return animes;
+        //}
     }
 }
